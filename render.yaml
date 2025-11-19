@@ -28,11 +28,6 @@ services:
       - key: OPENAI_API_KEY
         sync: false
 
-    # Optional: wait for dependencies
-    dependsOn:
-      - postgres
-      - redis
-
 # Redis service
   - name: redis
     type: redis
