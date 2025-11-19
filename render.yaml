@@ -4,30 +4,14 @@ services:
     env: docker
     dockerfilePath: ./Dockerfile
     envVars:
-      - key: POSTGRES_USER
-        value: postgres
-      - key: POSTGRES_PASSWORD
-        value: password
-      - key: POSTGRES_DB
-        value: bharat_products_db
-
-      # Static connection strings
+      # Replace with your free cloud Postgres credentials
       - key: DATABASE_URL
-        value: postgresql://postgres:password@postgres:5432/bharat_products_db
-      - key: REDIS_URL
-        value: redis://redis:6379/0
+        value: postgresql://USER:PASSWORD@HOST:PORT/DB
 
+      # Replace with your free Redis credentials, if needed
+      - key: REDIS_URL
+        value: redis://HOST:PORT/0
+
+      # OpenAI API key stored in Render Dashboard
       - key: OPENAI_API_KEY
         sync: false
-
-# Redis service
-  - name: redis
-    type: redis
-    plan: starter
-    ipAllowList: []   # must be included
-
-# Postgres service
-databases:
-  - name: postgres
-    plan: starter
-    databaseName: bharat_products_db
