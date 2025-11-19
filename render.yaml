@@ -4,14 +4,14 @@ services:
     env: docker
     dockerfilePath: ./Dockerfile
     envVars:
-      # Replace with your free cloud Postgres credentials
+      # Replace with free cloud Postgres credentials
       - key: DATABASE_URL
         value: postgresql://USER:PASSWORD@HOST:PORT/DB
 
-      # Replace with your free Redis credentials, if needed
+      # Replace with free cloud Redis credentials
       - key: REDIS_URL
         value: redis://HOST:PORT/0
 
-      # OpenAI API key stored in Render Dashboard
+      # OpenAI API key
       - key: OPENAI_API_KEY
         sync: false
