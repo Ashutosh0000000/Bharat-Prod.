@@ -11,7 +11,7 @@ services:
       - key: POSTGRES_DB
         value: bharat_products_db
 
-      # Use static connection strings instead of fromService
+      # Static connection strings
       - key: DATABASE_URL
         value: postgresql://postgres:password@postgres:5432/bharat_products_db
       - key: REDIS_URL
@@ -24,6 +24,7 @@ services:
   - name: redis
     type: redis
     plan: starter
+    ipAllowList: []   # must be included
 
 # Postgres service
 databases:
