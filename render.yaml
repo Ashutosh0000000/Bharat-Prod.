@@ -12,33 +12,31 @@ services:
       - key: POSTGRES_DB
         value: bharat_products_db
 
-      # Replace local Postgres with Render Postgres
+      # Render Postgres connection
       - key: DATABASE_URL
         fromService:
           name: postgres
           property: connectionString
 
-      # Replace local Redis with Render Redis
+      # Render Redis connection
       - key: REDIS_URL
         fromService:
           name: redis
           property: connectionString
 
-      # Secret key – added in Render Dashboard, not in repo
+      # Your OpenAI API Key stored in Render Dashboard (NOT in repo)
       - key: OPENAI_API_KEY
         sync: false
 
-# Postgres same name as your docker-compose
+  # Redis service on Render
+  - name: redis
+    type: redis
+    plan: starter
+    ipAllowList: []
+
 databases:
   - name: postgres
     plan: starter
     databaseName: bharat_products_db
     user: postgres
     password: password
-
-# Redis same name as your docker-compose
-services:
-  - name: redis
-    type: redis
-    plan: starter
-    ipAllowList: []
