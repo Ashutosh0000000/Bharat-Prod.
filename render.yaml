@@ -3,8 +3,6 @@ services:
     type: web
     env: docker
     dockerfilePath: ./Dockerfile
-    # ❌ No startCommand for docker apps
-    # Render will use CMD from your Dockerfile
 
     envVars:
       - key: POSTGRES_USER
@@ -18,17 +16,17 @@ services:
       - key: DATABASE_URL
         fromService:
           name: postgres
-          type: psql       # ✅ REQUIRED
+          type: psql
           property: connectionString
 
       # Render Redis connection
       - key: REDIS_URL
         fromService:
           name: redis
-          type: redis      # ✅ REQUIRED
+          type: redis
           property: connectionString
 
-      # OpenAI API key (stored in Render secrets)
+      # OpenAI API key stored in Render Dashboard
       - key: OPENAI_API_KEY
         sync: false
 
