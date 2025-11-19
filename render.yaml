@@ -3,9 +3,10 @@ services:
     type: web
     env: docker
     dockerfilePath: ./Dockerfile
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    # ❌ No startCommand for docker apps
+    # Render will use CMD from your Dockerfile
+
     envVars:
-      # Local env vars (optional)
       - key: POSTGRES_USER
         value: postgres
       - key: POSTGRES_PASSWORD
@@ -17,15 +18,17 @@ services:
       - key: DATABASE_URL
         fromService:
           name: postgres
+          type: psql       # ✅ REQUIRED
           property: connectionString
 
       # Render Redis connection
       - key: REDIS_URL
         fromService:
           name: redis
+          type: redis      # ✅ REQUIRED
           property: connectionString
 
-      # OpenAI API Key (kept secret in Render dashboard)
+      # OpenAI API key (stored in Render secrets)
       - key: OPENAI_API_KEY
         sync: false
 
@@ -35,8 +38,8 @@ services:
     plan: starter
     ipAllowList: []
 
+# Postgres service
 databases:
   - name: postgres
     plan: starter
     databaseName: bharat_products_db
-
