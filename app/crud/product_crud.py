@@ -241,34 +241,32 @@ def suggest_products(
     except Exception as e:
         logger.error(f"Error in suggest_products: {e}")
         return []
+
 def search_by_problem_description(session: Session, description: str, limit: int = 5):
     """
     AI-powered semantic search using OpenAI embeddings.
     Users can describe their need in natural language.
-    Understand discription and give the most equivalent product.
     Returns products most relevant to the description.
-    Optimized for small datasets without heavy local models.
     """
     try:
         import numpy as np
         from openai import OpenAI
         from sklearn.metrics.pairwise import cosine_similarity
 
-        # STEP 1 — Load OpenAI client (ensure OPENAI_API_KEY is in .env)
         client = OpenAI()
 
-        # STEP 2 — Check Redis cache
+        # Check Redis cache first
         cache_key = f"ai_search:{description.lower()}"
         cached = cache_get(cache_key)
         if cached:
             return {"query": description, "results": cached}
 
-        # STEP 3 — Load products
+        # Load products from DB
         products = session.exec(select(Product)).all()
         if not products:
             return {"query": description, "results": []}
 
-        # STEP 4 — Create embeddings for products
+        # Create embeddings for all products
         product_texts = [f"{p.name}. {p.description}. {p.tags}" for p in products]
         product_embeddings = []
         for text in product_texts:
@@ -279,21 +277,22 @@ def search_by_problem_description(session: Session, description: str, limit: int
             product_embeddings.append(np.array(emb_resp.data[0].embedding, dtype=np.float32))
         product_embeddings = np.vstack(product_embeddings)
 
-        # STEP 5 — Encode user query
+        # Encode user query
         query_resp = client.embeddings.create(
             model="text-embedding-3-small",
             input=description
         )
         query_embedding = np.array(query_resp.data[0].embedding, dtype=np.float32).reshape(1, -1)
 
-        # STEP 6 — Compute cosine similarity in-memory
+        # Compute similarity
+        from sklearn.metrics.pairwise import cosine_similarity
         similarities = cosine_similarity(query_embedding, product_embeddings)[0]
         top_indices = similarities.argsort()[::-1][:limit]
 
-        # STEP 7 — Return top-k products
+        # Return top-k products
         results = [products[i].dict() for i in top_indices]
 
-        # STEP 8 — Cache results
+        # Cache results
         cache_set(cache_key, results, expire_seconds=300)
 
         return {"query": description, "results": results}

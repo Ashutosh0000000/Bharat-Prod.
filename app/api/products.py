@@ -136,3 +136,4 @@ def ai_search(
     """
     result = product_crud.search_by_problem_description(session, description)
     return result.get("results", [])
+
