@@ -1,0 +1,44 @@
+services:
+  - name: bharat-product-web
+    type: web
+    env: docker
+    dockerfilePath: ./Dockerfile
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: POSTGRES_USER
+        value: postgres
+      - key: POSTGRES_PASSWORD
+        value: password
+      - key: POSTGRES_DB
+        value: bharat_products_db
+
+      # Replace local Postgres with Render Postgres
+      - key: DATABASE_URL
+        fromService:
+          name: postgres
+          property: connectionString
+
+      # Replace local Redis with Render Redis
+      - key: REDIS_URL
+        fromService:
+          name: redis
+          property: connectionString
+
+      # Secret key – added in Render Dashboard, not in repo
+      - key: OPENAI_API_KEY
+        sync: false
+
+# Postgres same name as your docker-compose
+databases:
+  - name: postgres
+    plan: starter
+    databaseName: bharat_products_db
+    user: postgres
+    password: password
+
+# Redis same name as your docker-compose
+services:
+  - name: redis
+    type: redis
+    plan: starter
+    ipAllowList: []
