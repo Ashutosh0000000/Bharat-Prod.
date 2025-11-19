@@ -3,7 +3,6 @@ services:
     type: web
     env: docker
     dockerfilePath: ./Dockerfile
-
     envVars:
       - key: POSTGRES_USER
         value: postgres
@@ -12,23 +11,27 @@ services:
       - key: POSTGRES_DB
         value: bharat_products_db
 
-      # Render Postgres connection
+      # Postgres connection
       - key: DATABASE_URL
         fromService:
           name: postgres
-          type: postgres
+          type: database
           property: connectionString
 
-      # Render Redis connection
+      # Redis connection
       - key: REDIS_URL
         fromService:
           name: redis
           type: redis
           property: connectionString
 
-      # OpenAI API key stored in Render Dashboard
       - key: OPENAI_API_KEY
         sync: false
+
+    # Optional: wait for dependencies
+    dependsOn:
+      - postgres
+      - redis
 
 # Redis service
   - name: redis
