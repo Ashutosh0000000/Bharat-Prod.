@@ -16,7 +16,7 @@ services:
       - key: DATABASE_URL
         fromService:
           name: postgres
-          type: psql
+          type: postgresql
           property: connectionString
 
       # Render Redis connection
