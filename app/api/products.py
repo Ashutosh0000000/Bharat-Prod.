@@ -79,6 +79,27 @@ def get_trending_products(response: Response, session: Session = Depends(get_ses
     response.headers["X-Cache"] = "MISS"
     return products_json
 
+    # ----------------------------------
+# AI-powered search by problem description
+# ----------------------------------
+# ----------------------------------
+@router.get("/products/ai-search", response_model=List[ProductRead])
+def ai_search(
+    description: str = Query(..., description="Describe your need/problem"),
+    session: Session = Depends(get_session)
+):
+    """
+    Returns products most relevant to a user-described problem.
+    """
+
+    description = description.strip()
+
+    if not description:
+        raise HTTPException(status_code=400, detail="Description cannot be empty")
+
+    result = product_crud.search_by_problem_description(session, description)
+
+    return result.get("results", [])
 
 @router.get("/products/{product_id}/suggestions", response_model=List[ProductRead])
 def get_suggested_products(
@@ -122,18 +143,3 @@ def delete_product(product_id: int, session: Session = Depends(get_session)):
     if not success:
         raise HTTPException(status_code=404, detail="Product not found")
     return {"deleted": True}
-
-# ----------------------------------
-# AI-powered search by problem description
-# ----------------------------------
-@router.get("/products/ai-search", response_model=List[ProductRead])
-def ai_search(
-    description: str = Query(..., description="Describe your need/problem"),
-    session: Session = Depends(get_session)
-):
-    """
-    Returns products most relevant to a user-described problem.
-    """
-    result = product_crud.search_by_problem_description(session, description)
-    return result.get("results", [])
-

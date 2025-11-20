@@ -241,62 +241,73 @@ def suggest_products(
     except Exception as e:
         logger.error(f"Error in suggest_products: {e}")
         return []
-
+        
 def search_by_problem_description(session: Session, description: str, limit: int = 5):
     """
     AI-powered semantic search using OpenAI embeddings.
-    Users can describe their need in natural language.
-    Returns products most relevant to the description.
+    Users describe their need in natural language.
+    Returns top matching products.
     """
     try:
         import numpy as np
-        from openai import OpenAI
         from sklearn.metrics.pairwise import cosine_similarity
 
-        client = OpenAI()
+        # Reuse global OpenAI client created at top of file
+        global client
 
-        # Check Redis cache first
+        # Check Redis cache
         cache_key = f"ai_search:{description.lower()}"
         cached = cache_get(cache_key)
         if cached:
             return {"query": description, "results": cached}
 
-        # Load products from DB
+        # Load products
         products = session.exec(select(Product)).all()
         if not products:
             return {"query": description, "results": []}
 
-        # Create embeddings for all products
-        product_texts = [f"{p.name}. {p.description}. {p.tags}" for p in products]
+        # Prepare product text content
+        product_texts = [
+            f"{p.name}. {p.description or ''}. {p.tags or ''}"
+            for p in products
+        ]
+
+        # Generate embeddings for all products
         product_embeddings = []
         for text in product_texts:
-            emb_resp = client.embeddings.create(
+            emb = client.embeddings.create(
                 model="text-embedding-3-small",
                 input=text
             )
-            product_embeddings.append(np.array(emb_resp.data[0].embedding, dtype=np.float32))
+            product_embeddings.append(
+                np.array(emb.data[0].embedding, dtype=np.float32)
+            )
+
         product_embeddings = np.vstack(product_embeddings)
 
         # Encode user query
-        query_resp = client.embeddings.create(
+        query_emb = client.embeddings.create(
             model="text-embedding-3-small",
             input=description
         )
-        query_embedding = np.array(query_resp.data[0].embedding, dtype=np.float32).reshape(1, -1)
+        query_vec = np.array(
+            query_emb.data[0].embedding,
+            dtype=np.float32
+        ).reshape(1, -1)
 
-        # Compute similarity
-        from sklearn.metrics.pairwise import cosine_similarity
-        similarities = cosine_similarity(query_embedding, product_embeddings)[0]
-        top_indices = similarities.argsort()[::-1][:limit]
+        # Cosine similarity
+        similarities = cosine_similarity(query_vec, product_embeddings)[0]
 
-        # Return top-k products
-        results = [products[i].dict() for i in top_indices]
+        # Pick top-K
+        top_idxs = similarities.argsort()[::-1][:limit]
 
-        # Cache results
+        results = [products[i].dict() for i in top_idxs]
+
+        # Cache for 5 mins
         cache_set(cache_key, results, expire_seconds=300)
 
         return {"query": description, "results": results}
 
     except Exception as e:
-        logger.error(f"AI search error: {e}")
+        logger.error(f"AI Search Error: {e}")
         return {"query": description, "results": []}

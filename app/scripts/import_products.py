@@ -29,7 +29,8 @@ def post_with_retries(url, data, retries=3, delay=1):
     return None
 
 # ✅ Only this line is changed:
-API_URL = os.getenv("API_URL", "https://bharat-products-e0et.onrender.com/api/products")
+API_URL = os.getenv("API_URL", "https://bharat-product-web.onrender.com/api/products")
+
 
 
 def import_products(csv_path):
