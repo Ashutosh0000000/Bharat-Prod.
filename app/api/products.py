@@ -87,11 +87,6 @@ def get_trending_products(response: Response, session: Session = Depends(get_ses
     response.headers["X-Cache"] = "MISS"
     return products_json
 
-
-    # ----------------------------------
-# AI-powered search by problem description
-# ----------------------------------
-# ----------------------------------
 @router.get("/products/ai-search", response_model=List[ProductRead])
 def ai_search(
     description: str = Query(..., description="Describe your need/problem"),
@@ -107,15 +102,20 @@ def ai_search(
         if not result:
             return []
 
+        # Ensure result is a list of ProductRead-compatible dicts
         if isinstance(result, list):
             return result
 
-        return result.get("results", [])
+        if isinstance(result, dict):
+            return result.get("results", [])
+
+        # If somehow unexpected type, return empty list
+        return []
 
     except Exception as e:
+        # Log the error for debugging
         print("❌ AI search error:", e)
-        raise HTTPException(status_code=500, detail=str(e))
-
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/products/{product_id}/suggestions", response_model=List[ProductRead])
