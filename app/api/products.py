@@ -88,10 +88,6 @@ def ai_search(
     description: str = Query(..., description="Describe your need/problem"),
     session: Session = Depends(get_session)
 ):
-    """
-    Returns products most relevant to a user-described problem.
-    """
-
     description = description.strip()
 
     if not description:
@@ -99,7 +95,17 @@ def ai_search(
 
     result = product_crud.search_by_problem_description(session, description)
 
+    # Fix: result might be None → prevents 500 crash
+    if not result:
+        return []
+
+    # Fix: result might already be a list → return directly
+    if isinstance(result, list):
+        return result
+
+    # Fix: result is a dict → return .results safely
     return result.get("results", [])
+
 
 @router.get("/products/{product_id}/suggestions", response_model=List[ProductRead])
 def get_suggested_products(
