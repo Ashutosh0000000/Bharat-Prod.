@@ -17,10 +17,14 @@ from app.crud import product_crud
 import redis
 import json
 
-router = APIRouter()
+REDIS_URL = os.getenv("REDIS_URL")
 
-# Initialize Redis
-redis_client = redis.Redis.from_url("redis://redis:6379/0")
+if not REDIS_URL:
+    print("❌ ERROR: REDIS_URL is not set in environment variables!")
+    redis_client = None
+else:
+    redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
+
 
 # ----------------------------------
 # Create a new product
@@ -57,12 +61,15 @@ def read_products(
         sort_by=sort_by,
         order=order,
     )
-
-# ----------------------------------
-# STATIC ROUTES BEFORE DYNAMIC ONES
 @router.get("/products/trending", response_model=List[ProductRead])
 def get_trending_products(response: Response, session: Session = Depends(get_session)):
     cache_key = "trending_products"
+
+    # If Redis is not available, skip cache
+    if not redis_client:
+        print("⚠ Redis not available — returning DB results only")
+        return product_crud.get_top_products_by_purchase_count(session, limit=10)
+
     cached_data = redis_client.get(cache_key)
     if cached_data:
         try:
@@ -70,7 +77,7 @@ def get_trending_products(response: Response, session: Session = Depends(get_ses
             response.headers["X-Cache"] = "HIT"
             return products
         except json.JSONDecodeError:
-            pass  # fallback to DB query
+            pass
 
     products = product_crud.get_top_products_by_purchase_count(session, limit=10)
     products_json = [p.dict() for p in products]
@@ -78,6 +85,7 @@ def get_trending_products(response: Response, session: Session = Depends(get_ses
     redis_client.setex(cache_key, 300, json.dumps(products_json, default=default_json_serializer))
     response.headers["X-Cache"] = "MISS"
     return products_json
+
 
     # ----------------------------------
 # AI-powered search by problem description

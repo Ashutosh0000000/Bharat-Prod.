@@ -19,9 +19,7 @@ client = OpenAI()
 logger = logging.getLogger("product_crud")
 redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
 
-
 logger.setLevel(logging.INFO)
-redis_client = redis.Redis.from_url(redis_url)
 
 parsed_url = urlparse(redis_url)
 REDIS_HOST = parsed_url.hostname
@@ -41,6 +39,7 @@ try:
 except Exception as e:
     logger.warning(f"Could not connect to Redis: {e}")
     redis_client = None
+
 
 CACHE_EXPIRE = 300
 
