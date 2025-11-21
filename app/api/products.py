@@ -16,6 +16,7 @@ from app.models.product import (
 from app.crud import product_crud
 import redis
 import json
+router = APIRouter()  # <-- Add this 
 
 REDIS_URL = os.getenv("REDIS_URL")
 
