@@ -97,23 +97,25 @@ def ai_search(
     description: str = Query(..., description="Describe your need/problem"),
     session: Session = Depends(get_session)
 ):
-    description = description.strip()
+    try:
+        description = description.strip()
+        if not description:
+            raise HTTPException(status_code=400, detail="Description cannot be empty")
 
-    if not description:
-        raise HTTPException(status_code=400, detail="Description cannot be empty")
+        result = product_crud.search_by_problem_description(session, description)
 
-    result = product_crud.search_by_problem_description(session, description)
+        if not result:
+            return []
 
-    # Fix: result might be None → prevents 500 crash
-    if not result:
-        return []
+        if isinstance(result, list):
+            return result
 
-    # Fix: result might already be a list → return directly
-    if isinstance(result, list):
-        return result
+        return result.get("results", [])
 
-    # Fix: result is a dict → return .results safely
-    return result.get("results", [])
+    except Exception as e:
+        print("❌ AI search error:", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @router.get("/products/{product_id}/suggestions", response_model=List[ProductRead])
