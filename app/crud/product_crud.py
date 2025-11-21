@@ -308,6 +308,6 @@ def search_by_problem_description(session: Session, description: str, limit: int
 
         return {"query": description, "results": results}
 
-    except Exception as e:
-        logger.error(f"AI Search Error: {e}")
-        return {"query": description, "results": []}
+   except Exception as e:
+    logger.error(f"Redis connection failed: {e}")
+    raise RuntimeError("Redis is required for AI Search. Please fix REDIS_URL or connection.")
