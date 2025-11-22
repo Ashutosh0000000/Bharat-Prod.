@@ -242,7 +242,7 @@ def suggest_products(
         logger.error(f"Error in suggest_products: {e}")
         return []
 
-        def search_by_problem_description(session, problem: str):
+def search_by_problem_description(session, problem: str):
     import re
     from sqlalchemy import or_
 
