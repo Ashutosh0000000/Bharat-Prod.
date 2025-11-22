@@ -242,14 +242,7 @@ def suggest_products(
         logger.error(f"Error in suggest_products: {e}")
         return []
 
-def search_by_problem_description(session, problem: str):
-    """
-    Robust hybrid search:
-    - safe Redis usage
-    - proper SQLAlchemy or_ usage
-    - expanded synonyms
-    - scoring + shaped response
-    """
+        def search_by_problem_description(session, problem: str):
     import re
     from sqlalchemy import or_
 
@@ -257,88 +250,65 @@ def search_by_problem_description(session, problem: str):
     if not problem:
         return []
 
-    # 1) Try cache (safe)
-    cache_key = f"smart_search:{problem}"
-    try:
-        cached_raw = safe_redis_get(cache_key)
-    except Exception:
-        cached_raw = None
+    # Normalize description: remove common prefixes
+    problem = re.sub(r"\b(i want to|want|need|looking for|please)\b", "", problem)
 
-    if cached_raw:
-        try:
-            return json.loads(cached_raw)
-        except Exception:
-            # If cache corrupt, ignore and continue
-            logger.warning("Failed to decode cached search result; ignoring cache.")
-            pass
-
-    # 2) Extract keywords
+    # Extract keywords
     words = re.findall(r"\w+", problem)
     words = [w for w in words if len(w) > 2]
     if not words:
         return []
 
-    # 3) Synonym expansion (use your dataset-based synonyms)
+    # Expanded synonym mapping
     synonyms = {
         "earbuds": ["earphones", "tws", "headphones", "audio", "bluetooth"],
         "earphones": ["earbuds", "tws"],
         "headphones": ["earbuds", "audio"],
-        "dirty": ["clean", "wash", "dust", "stain"],
-        "clean": ["wash", "wipe", "sanitize"],
-        "battery": ["charge", "power", "backup"],
-        "charging": ["battery", "power"],
+        "dirty": ["clean", "wash", "dust", "stain", "laundry"],
+        "clean": ["wash", "wipe", "sanitize", "laundry", "clothes"],
+        "clothes": ["washing machine", "laundry", "dryer"],
+        "washing": ["washing machine", "laundry"],
+        "laundry": ["washing machine", "dryer", "clothes"],
+        "refrigerator": ["fridge", "cooler", "freezer"],
+        "fridge": ["refrigerator", "cooler"],
+        "mixer": ["blender", "grinder", "mixie"],
         "phone": ["mobile", "smartphone", "android"],
         "mobile": ["phone", "device"],
         "mosquito": ["insect", "repellent", "pest"],
         "insect": ["mosquito", "bug"],
-        "mixie": ["mixer", "grinder"],
-        "mixer": ["blender", "grinder"],
         "shoes": ["footwear", "sneakers"],
         "shirt": ["tshirt", "clothes", "top"],
         "trimmer": ["shaver", "grooming"],
     }
 
+    # Expand keywords
     expanded = set(words)
-    for w in list(words):
+    for w in words:
         if w in synonyms:
             expanded.update(synonyms[w])
     expanded = list(expanded)
 
-    # 4) Build SQL clauses correctly and safely
-    clauses = []
-    for w in expanded:
-        like = f"%{w}%"
-        clauses.append(
-            or_(
-                Product.name.ilike(like),
-                Product.description.ilike(like),
-                Product.category.ilike(like),
-                Product.tags.ilike(like),
-                Product.brand.ilike(like)
-            )
-        )
+    # Build SQL clauses
+    clauses = [or_(
+        Product.name.ilike(f"%{w}%"),
+        Product.description.ilike(f"%{w}%"),
+        Product.category.ilike(f"%{w}%"),
+        Product.tags.ilike(f"%{w}%"),
+        Product.brand.ilike(f"%{w}%")
+    ) for w in expanded]
 
-    # If no clauses (shouldn't happen) return empty
     if not clauses:
         return []
 
-    stmt = select(Product).where(or_(*clauses)).limit(500)
+    stmt = select(Product).where(or_(*clauses)).limit(50)
     products = []
     try:
         products = session.exec(stmt).all()
     except Exception as e:
-        logger.error(f"DB search error in search_by_problem_description: {e}")
+        logger.error(f"DB search error: {e}")
         return []
 
-    if not products:
-        # cache negative result briefly to avoid repeated DB hits
-        try:
-            safe_redis_set(cache_key, json.dumps([]), ex=60)
-        except Exception:
-            pass
-        return []
-
-    # 5) Scoring + shaping
+    # Score + rank
     ranked = []
     for p in products:
         text = " ".join([
@@ -348,22 +318,16 @@ def search_by_problem_description(session, problem: str):
             str(getattr(p, "category", "") or ""),
             str(getattr(p, "brand", "") or ""),
         ]).lower()
-
         matched = [w for w in expanded if w in text]
-        score = len(matched) * 2
-        try:
-            score += float(getattr(p, "rating", 0) or 0)
-        except Exception:
-            pass
-        if getattr(p, "stock", 0) and getattr(p, "stock", 0) > 0:
+        score = len(matched) * 2 + (float(getattr(p, "rating", 0) or 0))
+        if getattr(p, "stock", 0) > 0:
             score += 1
-
         ranked.append({"product": p, "score": score, "matched": matched})
 
     ranked.sort(key=lambda x: x["score"], reverse=True)
 
     result = []
-    for item in ranked:
+    for item in ranked[:20]:  # top 20 products
         p = item["product"]
         result.append({
             "id": p.id,
@@ -377,9 +341,9 @@ def search_by_problem_description(session, problem: str):
             "score": item["score"]
         })
 
-    # 6) Cache result safely (stringify once)
+    # Cache result
     try:
-        safe_redis_set(cache_key, json.dumps(result, default=default_json_serializer), ex=300)
+        safe_redis_set(f"smart_search:{problem}", json.dumps(result, default=default_json_serializer), ex=300)
     except Exception:
         pass
 
