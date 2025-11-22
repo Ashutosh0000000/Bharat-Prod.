@@ -243,122 +243,144 @@ def suggest_products(
         return []
 
 def search_by_problem_description(session, problem: str):
+    """
+    Robust hybrid search:
+    - safe Redis usage
+    - proper SQLAlchemy or_ usage
+    - expanded synonyms
+    - scoring + shaped response
+    """
     import re
     from sqlalchemy import or_
 
-    problem = problem.lower().strip()
+    problem = (problem or "").strip().lower()
     if not problem:
         return []
 
-    # -----------------------------
-    # Redis cache
-    # -----------------------------
+    # 1) Try cache (safe)
     cache_key = f"smart_search:{problem}"
-    cached = redis_client.get(cache_key)
-    if cached:
-        return json.loads(cached)
+    try:
+        cached_raw = safe_redis_get(cache_key)
+    except Exception:
+        cached_raw = None
 
-    # -----------------------------
-    # Extract words
-    # -----------------------------
+    if cached_raw:
+        try:
+            return json.loads(cached_raw)
+        except Exception:
+            # If cache corrupt, ignore and continue
+            logger.warning("Failed to decode cached search result; ignoring cache.")
+            pass
+
+    # 2) Extract keywords
     words = re.findall(r"\w+", problem)
     words = [w for w in words if len(w) > 2]
+    if not words:
+        return []
 
-    # -----------------------------
-    # Synonyms expansion
-    # -----------------------------
+    # 3) Synonym expansion (use your dataset-based synonyms)
     synonyms = {
         "earbuds": ["earphones", "tws", "headphones", "audio", "bluetooth"],
         "earphones": ["earbuds", "tws"],
         "headphones": ["earbuds", "audio"],
-
         "dirty": ["clean", "wash", "dust", "stain"],
         "clean": ["wash", "wipe", "sanitize"],
-
         "battery": ["charge", "power", "backup"],
         "charging": ["battery", "power"],
-
         "phone": ["mobile", "smartphone", "android"],
         "mobile": ["phone", "device"],
-
         "mosquito": ["insect", "repellent", "pest"],
         "insect": ["mosquito", "bug"],
-
         "mixie": ["mixer", "grinder"],
         "mixer": ["blender", "grinder"],
-
         "shoes": ["footwear", "sneakers"],
         "shirt": ["tshirt", "clothes", "top"],
-
         "trimmer": ["shaver", "grooming"],
     }
 
     expanded = set(words)
-    for w in words:
+    for w in list(words):
         if w in synonyms:
             expanded.update(synonyms[w])
-
     expanded = list(expanded)
 
-    # -----------------------------
-    # Build SQL OR search
-    # -----------------------------
+    # 4) Build SQL clauses correctly and safely
     clauses = []
     for w in expanded:
+        like = f"%{w}%"
         clauses.append(
             or_(
-                Product.name.ilike(f"%{w}%"),
-                Product.description.ilike(f"%{w}%"),
-                Product.category.ilike(f"%{w}%"),
-                Product.tags.ilike(f"%{w}%")
+                Product.name.ilike(like),
+                Product.description.ilike(like),
+                Product.category.ilike(like),
+                Product.tags.ilike(like),
+                Product.brand.ilike(like)
             )
         )
 
-    query = select(Product).where(or_(*clauses))
-    products = session.exec(query).all()
+    # If no clauses (shouldn't happen) return empty
+    if not clauses:
+        return []
 
-    # -----------------------------
-    # Scoring
-    # -----------------------------
+    stmt = select(Product).where(or_(*clauses)).limit(500)
+    products = []
+    try:
+        products = session.exec(stmt).all()
+    except Exception as e:
+        logger.error(f"DB search error in search_by_problem_description: {e}")
+        return []
+
+    if not products:
+        # cache negative result briefly to avoid repeated DB hits
+        try:
+            safe_redis_set(cache_key, json.dumps([]), ex=60)
+        except Exception:
+            pass
+        return []
+
+    # 5) Scoring + shaping
     ranked = []
     for p in products:
-        score = 0
-        full_text = f"{p.name} {p.description} {p.tags}".lower()
+        text = " ".join([
+            str(getattr(p, "name", "") or ""),
+            str(getattr(p, "description", "") or ""),
+            str(getattr(p, "tags", "") or ""),
+            str(getattr(p, "category", "") or ""),
+            str(getattr(p, "brand", "") or ""),
+        ]).lower()
 
-        matched = [w for w in expanded if w in full_text]
-        score += len(matched) * 2
-
-        if getattr(p, "rating", 0):
-            score += float(p.rating)
-
-        if getattr(p, "stock", 0) > 0:
+        matched = [w for w in expanded if w in text]
+        score = len(matched) * 2
+        try:
+            score += float(getattr(p, "rating", 0) or 0)
+        except Exception:
+            pass
+        if getattr(p, "stock", 0) and getattr(p, "stock", 0) > 0:
             score += 1
 
-        ranked.append({
-            "product": p,
-            "score": score,
-            "matched": matched
-        })
+        ranked.append({"product": p, "score": score, "matched": matched})
 
     ranked.sort(key=lambda x: x["score"], reverse=True)
 
-    # -----------------------------
-    # Format output
-    # -----------------------------
-    result = [
-        {
-            "id": p["product"].id,
-            "name": p["product"].name,
-            "price": p["product"].price,
-            "rating": p["product"].rating,
-            "stock": p["product"].stock,
-            "image_url": p["product"].image_url,
-            "description": p["product"].description,
-            "reason": f"Matched: {', '.join(p['matched'])}, Score: {p['score']}"
-        }
-        for p in ranked
-    ]
+    result = []
+    for item in ranked:
+        p = item["product"]
+        result.append({
+            "id": p.id,
+            "name": p.name,
+            "price": p.price,
+            "rating": p.rating,
+            "stock": p.stock,
+            "image_url": p.image_url,
+            "description": p.description,
+            "reason": f"Matched: {', '.join(item['matched'])}" if item["matched"] else None,
+            "score": item["score"]
+        })
 
-    # Cache
-    redis_client.set(cache_key, json.dumps(result), ex=300)
+    # 6) Cache result safely (stringify once)
+    try:
+        safe_redis_set(cache_key, json.dumps(result, default=default_json_serializer), ex=300)
+    except Exception:
+        pass
+
     return result

@@ -66,24 +66,37 @@ def read_products(
 def get_trending_products(response: Response, session: Session = Depends(get_session)):
     cache_key = "trending_products"
 
-    # If Redis is not available, skip cache
-    if not redis_client:
-        print("⚠ Redis not available — returning DB results only")
-        return product_crud.get_top_products_by_purchase_count(session, limit=10)
+    # Use safe redis getter
+    cached_data = None
+    try:
+        cached_data = safe_redis_get(cache_key)
+    except Exception:
+        cached_data = None
 
-    cached_data = redis_client.get(cache_key)
     if cached_data:
         try:
             products = json.loads(cached_data)
             response.headers["X-Cache"] = "HIT"
             return products
         except json.JSONDecodeError:
-            pass
+            # corrupted cache -> fall through to DB
+            logger.warning("Trending cache corrupted, fetching DB results.")
 
-    products = product_crud.get_top_products_by_purchase_count(session, limit=10)
-    products_json = [p.dict() for p in products]
+    # Fallback: read from DB
+    try:
+        products = product_crud.get_top_products_by_purchase_count(session, limit=10)
+        products_json = [p.dict() for p in products]
+    except Exception as e:
+        logger.error(f"Error fetching trending products from DB: {e}")
+        # Return empty list instead of raising 500
+        return []
 
-    redis_client.setex(cache_key, 300, json.dumps(products_json, default=default_json_serializer))
+    # Try caching but ignore errors
+    try:
+        safe_redis_setex(cache_key, 300, json.dumps(products_json, default=default_json_serializer))
+    except Exception:
+        pass
+
     response.headers["X-Cache"] = "MISS"
     return products_json
 
@@ -92,31 +105,31 @@ def ai_search(
     description: str = Query(..., description="Describe your need/problem"),
     session: Session = Depends(get_session)
 ):
-    try:
-        description = description.strip()
-        if not description:
-            raise HTTPException(status_code=400, detail="Description cannot be empty")
+    description = description.strip()
+    if not description:
+        raise HTTPException(status_code=400, detail="Description cannot be empty")
 
+    try:
         result = product_crud.search_by_problem_description(session, description)
 
+        # Normalize output to list of dicts that match ProductRead
         if not result:
             return []
 
-        # Ensure result is a list of ProductRead-compatible dicts
+        # If product objects (SQLModel), convert to dicts
+        if isinstance(result, list) and result and hasattr(result[0], "dict"):
+            return [r.dict() for r in result]
+
         if isinstance(result, list):
             return result
 
         if isinstance(result, dict):
             return result.get("results", [])
 
-        # If somehow unexpected type, return empty list
         return []
-
     except Exception as e:
-        # Log the error for debugging
-        print("❌ AI search error:", e)
+        logger.exception(f"AI search error: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
-
 
 @router.get("/products/{product_id}/suggestions", response_model=List[ProductRead])
 def get_suggested_products(
