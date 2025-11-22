@@ -240,75 +240,69 @@ def suggest_products(
     except Exception as e:
         logger.error(f"Error in suggest_products: {e}")
         return []
-        
+
+from fastapi import HTTPException
+
 def search_by_problem_description(session: Session, description: str, limit: int = 5):
     """
     AI-powered semantic search using OpenAI embeddings.
-    Users describe their need in natural language.
-    Returns top matching products.
+    Uses single batch embeddings → fast & Render friendly.
     """
     try:
-        import numpy as np
-        from sklearn.metrics.pairwise import cosine_similarity
-
-        # Reuse global OpenAI client created at top of file
         global client
 
-        # Check Redis cache
+        # Cache check
         cache_key = f"ai_search:{description.lower()}"
         cached = cache_get(cache_key)
         if cached:
             return {"query": description, "results": cached}
 
-        # Load products
+        # Load all products
         products = session.exec(select(Product)).all()
         if not products:
             return {"query": description, "results": []}
 
-        # Prepare product text content
+        # Prepare product texts for embedding
         product_texts = [
             f"{p.name}. {p.description or ''}. {p.tags or ''}"
             for p in products
         ]
 
-        # Generate embeddings for all products
-        product_embeddings = []
-        for text in product_texts:
-            emb = client.embeddings.create(
-                model="text-embedding-3-small",
-                input=text
-            )
-            product_embeddings.append(
-                np.array(emb.data[0].embedding, dtype=np.float32)
-            )
+        # One call: embed all products
+        product_embeddings = client.embeddings.create(
+            model="text-embedding-3-small",
+            input=product_texts
+        ).data
 
-        product_embeddings = np.vstack(product_embeddings)
-
-        # Encode user query
-        query_emb = client.embeddings.create(
+        # Embed the query
+        query_embedding = client.embeddings.create(
             model="text-embedding-3-small",
             input=description
-        )
-        query_vec = np.array(
-            query_emb.data[0].embedding,
-            dtype=np.float32
-        ).reshape(1, -1)
+        ).data[0].embedding
 
-        # Cosine similarity
-        similarities = cosine_similarity(query_vec, product_embeddings)[0]
+        # Compute similarity manually (no numpy)
+        def cosine(a, b):
+            dot = sum(x * y for x, y in zip(a, b))
+            norm_a = sum(x * x for x in a) ** 0.5
+            norm_b = sum(x * x for x in b) ** 0.5
+            return dot / (norm_a * norm_b)
 
-        # Pick top-K
-        top_idxs = similarities.argsort()[::-1][:limit]
+        similarities = [
+            (i, cosine(query_embedding, emb.embedding))
+            for i, emb in enumerate(product_embeddings)
+        ]
 
-        results = [products[i].dict() for i in top_idxs]
+        # Sort by similarity
+        similarities.sort(key=lambda x: x[1], reverse=True)
 
-        # Cache for 5 mins
+        top_indices = [i for i, _ in similarities[:limit]]
+        results = [products[i].dict() for i in top_indices]
+
+        # Cache results
         cache_set(cache_key, results, expire_seconds=300)
 
         return {"query": description, "results": results}
 
     except Exception as e:
-        # Correct logging — not always Redis error
         logger.error(f"AI Search failed: {e}")
         raise HTTPException(status_code=500, detail=f"AI Search failed: {str(e)}")
-
