@@ -7,6 +7,7 @@ import redis
 import json
 import datetime
 from sqlmodel import Session, select
+from fastapi import HTTPException
 from sqlalchemy import func, or_
 from app.models.product import Product, ProductCreate
 from typing import List, Optional
@@ -14,7 +15,7 @@ from urllib.parse import urlparse
 from app.db import engine
 
 from openai import OpenAI
-client = OpenAI()
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 logger = logging.getLogger("product_crud")
 redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
@@ -241,68 +242,123 @@ def suggest_products(
         logger.error(f"Error in suggest_products: {e}")
         return []
 
-from fastapi import HTTPException
+def search_by_problem_description(session, problem: str):
+    import re
+    from sqlalchemy import or_
 
-def search_by_problem_description(session: Session, description: str, limit: int = 5):
-    """
-    AI-powered semantic search using OpenAI embeddings.
-    Uses single batch embeddings → fast & Render friendly.
-    """
-    try:
-        global client
+    problem = problem.lower().strip()
+    if not problem:
+        return []
 
-        # Cache check
-        cache_key = f"ai_search:{description.lower()}"
-        cached = cache_get(cache_key)
-        if cached:
-            return {"query": description, "results": cached}
+    # -----------------------------
+    # Redis cache
+    # -----------------------------
+    cache_key = f"smart_search:{problem}"
+    cached = redis_client.get(cache_key)
+    if cached:
+        return json.loads(cached)
 
-        # Load all products
-        products = session.exec(select(Product)).all()
-        if not products:
-            return {"query": description, "results": []}
+    # -----------------------------
+    # Extract words
+    # -----------------------------
+    words = re.findall(r"\w+", problem)
+    words = [w for w in words if len(w) > 2]
 
-        # Prepare product texts for embedding
-        product_texts = [
-            f"{p.name}. {p.description or ''}. {p.tags or ''}"
-            for p in products
-        ]
+    # -----------------------------
+    # Synonyms expansion
+    # -----------------------------
+    synonyms = {
+        "earbuds": ["earphones", "tws", "headphones", "audio", "bluetooth"],
+        "earphones": ["earbuds", "tws"],
+        "headphones": ["earbuds", "audio"],
 
-        # One call: embed all products
-        product_embeddings = client.embeddings.create(
-            model="text-embedding-3-small",
-            input=product_texts
-        ).data
+        "dirty": ["clean", "wash", "dust", "stain"],
+        "clean": ["wash", "wipe", "sanitize"],
 
-        # Embed the query
-        query_embedding = client.embeddings.create(
-            model="text-embedding-3-small",
-            input=description
-        ).data[0].embedding
+        "battery": ["charge", "power", "backup"],
+        "charging": ["battery", "power"],
 
-        # Compute similarity manually (no numpy)
-        def cosine(a, b):
-            dot = sum(x * y for x, y in zip(a, b))
-            norm_a = sum(x * x for x in a) ** 0.5
-            norm_b = sum(x * x for x in b) ** 0.5
-            return dot / (norm_a * norm_b)
+        "phone": ["mobile", "smartphone", "android"],
+        "mobile": ["phone", "device"],
 
-        similarities = [
-            (i, cosine(query_embedding, emb.embedding))
-            for i, emb in enumerate(product_embeddings)
-        ]
+        "mosquito": ["insect", "repellent", "pest"],
+        "insect": ["mosquito", "bug"],
 
-        # Sort by similarity
-        similarities.sort(key=lambda x: x[1], reverse=True)
+        "mixie": ["mixer", "grinder"],
+        "mixer": ["blender", "grinder"],
 
-        top_indices = [i for i, _ in similarities[:limit]]
-        results = [products[i].dict() for i in top_indices]
+        "shoes": ["footwear", "sneakers"],
+        "shirt": ["tshirt", "clothes", "top"],
 
-        # Cache results
-        cache_set(cache_key, results, expire_seconds=300)
+        "trimmer": ["shaver", "grooming"],
+    }
 
-        return {"query": description, "results": results}
+    expanded = set(words)
+    for w in words:
+        if w in synonyms:
+            expanded.update(synonyms[w])
 
-    except Exception as e:
-        logger.error(f"AI Search failed: {e}")
-        raise HTTPException(status_code=500, detail=f"AI Search failed: {str(e)}")
+    expanded = list(expanded)
+
+    # -----------------------------
+    # Build SQL OR search
+    # -----------------------------
+    clauses = []
+    for w in expanded:
+        clauses.append(
+            or_(
+                Product.name.ilike(f"%{w}%"),
+                Product.description.ilike(f"%{w}%"),
+                Product.category.ilike(f"%{w}%"),
+                Product.tags.ilike(f"%{w}%")
+            )
+        )
+
+    query = select(Product).where(or_(*clauses))
+    products = session.exec(query).all()
+
+    # -----------------------------
+    # Scoring
+    # -----------------------------
+    ranked = []
+    for p in products:
+        score = 0
+        full_text = f"{p.name} {p.description} {p.tags}".lower()
+
+        matched = [w for w in expanded if w in full_text]
+        score += len(matched) * 2
+
+        if getattr(p, "rating", 0):
+            score += float(p.rating)
+
+        if getattr(p, "stock", 0) > 0:
+            score += 1
+
+        ranked.append({
+            "product": p,
+            "score": score,
+            "matched": matched
+        })
+
+    ranked.sort(key=lambda x: x["score"], reverse=True)
+
+    # -----------------------------
+    # Format output
+    # -----------------------------
+    result = [
+        {
+            "id": p["product"].id,
+            "name": p["product"].name,
+            "price": p["product"].price,
+            "rating": p["product"].rating,
+            "stock": p["product"].stock,
+            "image_url": p["product"].image_url,
+            "description": p["product"].description,
+            "reason": f"Matched: {', '.join(p['matched'])}, Score: {p['score']}"
+        }
+        for p in ranked
+    ]
+
+    # Cache
+    redis_client.set(cache_key, json.dumps(result), ex=300)
+    return result
