@@ -28,10 +28,7 @@ def post_with_retries(url, data, retries=3, delay=1):
         time.sleep(delay)
     return None
 
-# ✅ Only this line is changed:
 API_URL = os.getenv("API_URL", "https://bharat-product-web.onrender.com/api/products")
-
-
 
 def import_products(csv_path):
     if not os.path.exists(csv_path):
@@ -55,6 +52,7 @@ def import_products(csv_path):
                 skipped += 1
                 continue
 
+            # ✅ Only change: include mode field
             product_data = {
                 "name": name,
                 "description": row.get("description"),
@@ -66,6 +64,7 @@ def import_products(csv_path):
                 "image_url": row.get("image_url") if row.get("image_url", "").startswith("http") else "https://via.placeholder.com/300",
                 "rating": safe_float(row.get("rating"), default=0.0),
                 "stock": safe_int(row.get("stock")),
+                "mode": (row.get("mode") or "").lower()  # <- only addition
             }
 
             response = post_with_retries(API_URL, product_data)

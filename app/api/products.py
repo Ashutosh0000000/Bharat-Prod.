@@ -62,6 +62,17 @@ def read_products(
         sort_by=sort_by,
         order=order,
     )
+
+@router.get("/products/mode/{mode_name}", response_model=PaginatedProductResponse)
+def get_products_by_mode_endpoint(
+    mode_name: str,
+    skip: int = 0,
+    limit: int = 100,
+    session: Session = Depends(get_session)
+):
+    return product_crud.get_products_by_mode(session, mode_name, skip=skip, limit=limit)
+
+
 @router.get("/products/trending", response_model=List[ProductRead])
 def get_trending_products(response: Response, session: Session = Depends(get_session)):
     cache_key = "trending_products"

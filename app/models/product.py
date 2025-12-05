@@ -11,20 +11,22 @@ class ProductBase(SQLModel):
     name: str
     description: Optional[str] = None
     brand: Optional[str] = None
-    category: Optional[str] = None  # e.g. smartphones, accessories
+    category: Optional[str] = None
     price: float
-    region: Optional[str] = None  # e.g. India, Global, or city-specific
+    region: Optional[str] = None
     tags: Optional[str] = None
     image_url: Optional[str] = None
-    rating: Optional[confloat(ge=1.0, le=5.0)] = None  # Rating between 1.0 and 5.0
+    rating: Optional[confloat(ge=1.0, le=5.0)] = None
     stock: int = 0
-    warranty: Optional[str] = None         # e.g. "12 months" for electronics
-    size: Optional[str] = None             # For fashion items
-    material: Optional[str] = None         # Fabric/material
-    expiry_date: Optional[date] = None     # For FMCG/grocery — must be in YYYY-MM-DD format
-    pack_size: Optional[str] = None        # e.g. "500g", "1kg"
-    views: int = 0                         # Track popularity
+    warranty: Optional[str] = None
+    size: Optional[str] = None
+    material: Optional[str] = None
+    expiry_date: Optional[date] = None
+    pack_size: Optional[str] = None
+    views: int = 0
     purchase_count: int = 0
+    mode: Optional[str] = None  # ✅ ADD THIS
+
 
 @field_validator("image_url")
 def validate_image_url(cls, v):

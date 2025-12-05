@@ -242,6 +242,21 @@ def suggest_products(
         logger.error(f"Error in suggest_products: {e}")
         return []
 
+def get_products_by_mode(session: Session, mode_name: str, skip: int = 0, limit: int = 100) -> dict:
+    """
+    Fetch products that belong to a specific mode.
+    Assumes your Product model has a `mode` field (string or list).
+    """
+    try:
+        statement = select(Product).where(Product.mode == mode_name).offset(skip).limit(limit)
+        total = session.exec(select(func.count()).select_from(Product).where(Product.mode == mode_name)).first() or 0
+        products = session.exec(statement).all()
+        return {"total": total, "items": [p.dict() for p in products]}
+    except Exception as e:
+        logger.error(f"Error fetching products for mode '{mode_name}': {e}")
+        return {"total": 0, "items": []}
+
+
 def search_by_problem_description(session, problem: str):
     import re
     from sqlalchemy import or_

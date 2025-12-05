@@ -278,12 +278,104 @@ def show_need_based_search():
         else:
             st.info("Please describe your problem first.")
 
+# -------------------------------
+# --- Modes Grid (GEN-Z UI) -----
+# -------------------------------
+
+def show_modes():
+    st.title("🎭 Discover Products by Mood")
+
+    st.markdown("""
+        <style>
+        .mode-card {
+            border-radius: 22px;
+            padding: 22px;
+            height: 170px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-shadow: 0px 4px 12px rgba(0,0,0,0.05);
+            cursor: pointer;
+            transition: transform 0.15s ease;
+            border: 1px solid rgba(255,255,255,0.4);
+        }
+        .mode-card:hover {
+            transform: scale(1.05);
+        }
+        .mode-title {
+            font-size: 20px;
+            font-weight: 700;
+        }
+        .emoji-row {
+            font-size: 32px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    modes = [
+        ("Study", "📚📝🎧💡✏️", "#C9D7FF"),
+        ("Sleep", "😴🌙🛏️💤", "#E5DFFF"),
+        ("Gaming", "🎮🎧🕹️⚡", "#CBD6FF"),
+        ("Creator", "🎨✂️🖌️📷", "#FFD9EC"),
+        ("Glowup", "✨💄🧴🌟", "#D3F6CE"),
+        ("Budget_broke", "💸😩📦✨", "#FFE9BA"),
+        ("gift_for_crush", "💝❤️🎁💘", "#FFC8C8"),
+        ("Travel", "🌍✈️🎒📸", "#D5F3E5"),
+        ("anime", "🍥🎌💮🗾", "#CBE8FF"),
+        ("gym", "💪🏋️‍♂️🥤👟", "#FFE0C4"),
+        ("kitchen_appliances", "🍳🔪🥣🍽️", "#FFF1C9"),
+        ("fashion", "👗👜👠💍", "#F8C8FF"),
+    ]
+
+    cols = st.columns(3)
+
+    for i, (name, emojis, color) in enumerate(modes):
+        with cols[i % 3]:
+            if st.button(f"{name}", key=name):
+                st.session_state.selected_mode = name
+
+            st.markdown(
+                f"""
+                <div class="mode-card" style="background:{color};"
+                    onclick="window.location.href='?mode={name}'">
+                    <div class="emoji-row">{emojis}</div>
+                    <div class="mode-title">{name.replace('_',' ').title()} Mode</div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+    # Show selected mode
+    if "mode" in st.query_params:
+        selected = st.query_params["mode"]
+        st.subheader(f"🛒 Products in {selected.replace('_',' ').title()} Mode")
+
+        items = api_get("products", {"mode": selected}).get("items", [])
+
+        if not items:
+            st.warning("No products found for this mode.")
+            return
+
+        for i in range(0, len(items), 3):
+            cols = st.columns(3)
+            for j in range(3):
+                if i+j < len(items):
+                    with cols[j]:
+                        product_card(items[i+j])
+
+
 def main():
     st.set_page_config("Bharat Product Catalog", layout="wide")
     wake_backend()
 
     st.sidebar.title("📍 Navigate")
-    view = st.sidebar.radio("Select View", ["Dashboard", "Product List", "Add Product", "Need Help Choosing?"])
+    view = st.sidebar.radio(
+    "Select View",
+    ["Dashboard", "Product List", "Add Product", "Need Help Choosing?", "Modes"]
+)
 
     if "cart" not in st.session_state:
         st.session_state.cart = []
@@ -297,6 +389,8 @@ def main():
         show_add_product()
     elif view == "Need Help Choosing?":
         show_need_based_search()
+    elif view == "Modes":
+        show_modes()
 
 if __name__ == "__main__":
     main()
