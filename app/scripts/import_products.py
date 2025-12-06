@@ -24,10 +24,12 @@ def post_with_retries(url, data, retries=3, delay=2):
                 return response
             else:
                 print(f"Attempt {attempt}: Failed with status {response.status_code}")
+                print("Response:", response.text)   # ⭐ SHOW VALIDATION ERROR
         except requests.exceptions.RequestException as e:
             print(f"Attempt {attempt}: Request error: {e}")
         time.sleep(delay)
     return None
+
 
 API_URL = os.getenv("API_URL", "https://bharat-product-web.onrender.com/api/products")
 

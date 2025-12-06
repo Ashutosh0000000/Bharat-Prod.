@@ -27,14 +27,18 @@ class ProductBase(SQLModel):
     purchase_count: int = 0
     mode: Optional[str] = None  # ✅ ADD THIS
 
-    @field_validator("image_url")
-    def validate_image_url(cls, v):
-        if v:
-            valid_extensions = (".jpg", ".jpeg", ".png", ".webp")
-            if not any(v.lower().endswith(ext) for ext in valid_extensions):
-                raise ValueError("Image URL must end with .jpg, .jpeg, .png, or .webp")
-        return v
+    from urllib.parse import urlparse
 
+@field_validator("image_url")
+def validate_image_url(cls, v):
+    if v:
+        parsed = urlparse(v)
+        path = parsed.path.lower()  # <-- removes ?v=12345
+        
+        valid_extensions = (".jpg", ".jpeg", ".png", ".webp")
+        if not path.endswith(valid_extensions):
+            raise ValueError("Image URL must end with .jpg, .jpeg, .png, or .webp")
+    return v
 
 class Product(ProductBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
