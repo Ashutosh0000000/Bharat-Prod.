@@ -1,43 +1,39 @@
+
 import sys
 import os
-from urllib.parse import urlparse
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
-
 from sqlmodel import SQLModel, Field
 from typing import Optional, List
 from datetime import datetime, date
-from pydantic import BaseModel, confloat, field_validator
-
+from pydantic import BaseModel, confloat
+from pydantic import field_validator
 class ProductBase(SQLModel):
     name: str
     description: Optional[str] = None
     brand: Optional[str] = None
-    category: Optional[str] = None
+    category: Optional[str] = None  # e.g. smartphones, accessories
     price: float
-    region: Optional[str] = None
+    region: Optional[str] = None  # e.g. India, Global, or city-specific
     tags: Optional[str] = None
     image_url: Optional[str] = None
-    rating: Optional[confloat(ge=1.0, le=5.0)] = None
+    rating: Optional[confloat(ge=1.0, le=5.0)] = None  # Rating between 1.0 and 5.0
     stock: int = 0
-    warranty: Optional[str] = None
-    size: Optional[str] = None
-    material: Optional[str] = None
-    expiry_date: Optional[date] = None
-    pack_size: Optional[str] = None
-    views: int = 0
+    warranty: Optional[str] = None         # e.g. "12 months" for electronics
+    size: Optional[str] = None             # For fashion items
+    material: Optional[str] = None         # Fabric/material
+    expiry_date: Optional[date] = None     # For FMCG/grocery — must be in YYYY-MM-DD format
+    pack_size: Optional[str] = None        # e.g. "500g", "1kg"
+    views: int = 0                         # Track popularity
     purchase_count: int = 0
-    mode: Optional[str] = None  # ADD THIS
+    mode: Optional[str] = None 
 
-    @field_validator("image_url")
-    def validate_image_url(cls, v):
-        if v:
-            parsed = urlparse(v)
-            path = parsed.path.lower()      # <-- removes ?v=12345
-            valid_extensions = (".jpg", ".jpeg", ".png", ".webp")
-            if not path.endswith(valid_extensions):
-                raise ValueError("Image URL must end with .jpg, .jpeg, .png, or .webp")
-        return v
-
+@field_validator("image_url")
+def validate_image_url(cls, v):
+    if v:
+        valid_extensions = (".jpg", ".jpeg", ".png", ".webp")
+        if not any(v.lower().endswith(ext) for ext in valid_extensions):
+            raise ValueError("Image URL must end with .jpg, .jpeg, .png, or .webp")
+    return v
 
 class Product(ProductBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
