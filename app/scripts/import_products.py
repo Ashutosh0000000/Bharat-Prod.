@@ -3,6 +3,7 @@ import requests
 import os
 import time
 
+# ------------------ Utilities ------------------
 def safe_float(value, default=0.0):
     try:
         return float(value)
@@ -11,6 +12,9 @@ def safe_float(value, default=0.0):
 
 def safe_int(value, default=0):
     try:
+        # Handle "In Stock" or similar
+        if isinstance(value, str) and "in stock" in value.lower():
+            return 100  # default stock for "In Stock"
         return int(value)
     except (ValueError, TypeError):
         return default
@@ -28,8 +32,10 @@ def post_with_retries(url, data, retries=3, delay=1):
         time.sleep(delay)
     return None
 
+# ------------------ Config ------------------
 API_URL = os.getenv("API_URL", "https://bharat-product-web.onrender.com/api/products")
 
+# ------------------ Import Function ------------------
 def import_products(csv_path):
     if not os.path.exists(csv_path):
         print(f"❌ File not found: {csv_path}")
@@ -52,38 +58,44 @@ def import_products(csv_path):
                 skipped += 1
                 continue
 
-            # ✅ Only change: include mode field
+            stock_val = row.get("stock")
+            stock = safe_int(stock_val, default=50)  # default stock if empty or invalid
+
+            mode = (row.get("mode") or "general").strip().lower()  # default mode if missing
+
             product_data = {
                 "name": name,
-                "description": row.get("description"),
-                "brand": row.get("brand"),
-                "category": row.get("category"),
+                "description": row.get("description") or "No description provided",
+                "brand": row.get("brand") or "Unknown",
+                "category": row.get("category") or "Misc",
                 "price": price,
-                "region": row.get("region"),
-                "tags": row.get("tags"),
+                "region": row.get("region") or "India",
+                "tags": row.get("tags") or "",
                 "image_url": row.get("image_url") if row.get("image_url", "").startswith("http") else "https://via.placeholder.com/300",
                 "rating": safe_float(row.get("rating"), default=0.0),
-                "stock": safe_int(row.get("stock")),
-                "mode": (row.get("mode") or "").lower()  # <- only addition
+                "stock": stock,
+                "mode": mode
             }
 
             response = post_with_retries(API_URL, product_data)
 
             if response:
-                print(f"✅ Added: {name}")
+                print(f"✅ Added: {name} (Mode: {mode})")
                 success += 1
             else:
-                print(f"❌ Failed to add: {name}")
+                print(f"❌ Failed to add: {name} - trying next")
                 failed += 1
 
-            time.sleep(0.1)
+            time.sleep(0.05)  # small delay to avoid server overload
 
-        print("\n✅ Import Summary:")
+        # ------------------ Summary ------------------
+        print("\n📊 Import Summary:")
         print(f"Total products processed: {total}")
         print(f"Successfully added: {success}")
         print(f"Skipped (invalid data): {skipped}")
         print(f"Failed requests: {failed}")
 
+# ------------------ Main ------------------
 if __name__ == "__main__":
     current_dir = os.path.dirname(os.path.abspath(__file__))
     csv_path = os.path.join(current_dir, "products.csv")
