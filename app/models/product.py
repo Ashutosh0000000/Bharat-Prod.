@@ -1,12 +1,13 @@
-
 import sys
 import os
+from urllib.parse import urlparse
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+
 from sqlmodel import SQLModel, Field
 from typing import Optional, List
 from datetime import datetime, date
-from pydantic import BaseModel, confloat
-from pydantic import field_validator
+from pydantic import BaseModel, confloat, field_validator
+
 class ProductBase(SQLModel):
     name: str
     description: Optional[str] = None
@@ -25,20 +26,18 @@ class ProductBase(SQLModel):
     pack_size: Optional[str] = None
     views: int = 0
     purchase_count: int = 0
-    mode: Optional[str] = None  # ✅ ADD THIS
+    mode: Optional[str] = None  # ADD THIS
 
-    from urllib.parse import urlparse
+    @field_validator("image_url")
+    def validate_image_url(cls, v):
+        if v:
+            parsed = urlparse(v)
+            path = parsed.path.lower()      # <-- removes ?v=12345
+            valid_extensions = (".jpg", ".jpeg", ".png", ".webp")
+            if not path.endswith(valid_extensions):
+                raise ValueError("Image URL must end with .jpg, .jpeg, .png, or .webp")
+        return v
 
-@field_validator("image_url")
-def validate_image_url(cls, v):
-    if v:
-        parsed = urlparse(v)
-        path = parsed.path.lower()  # <-- removes ?v=12345
-        
-        valid_extensions = (".jpg", ".jpeg", ".png", ".webp")
-        if not path.endswith(valid_extensions):
-            raise ValueError("Image URL must end with .jpg, .jpeg, .png, or .webp")
-    return v
 
 class Product(ProductBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
