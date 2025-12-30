@@ -1,5 +1,4 @@
-🚀 Built a Production-Ready Product Discovery Platform 🇮🇳
-
+🚀Built a Production-Ready Product Discovery Platform 🇮🇳
 After weeks of backend-heavy engineering, I built and deployed a scalable product platform — not a demo, not a tutorial.
 
 Bharat Products – Made in India
