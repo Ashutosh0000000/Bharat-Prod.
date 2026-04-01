@@ -10,15 +10,21 @@ MODES
 
 <img width="1600" height="704" alt="image" src="https://github.com/user-attachments/assets/65f4db91-b967-4e97-8b54-89985f6d25f9" />
 
+
 <img width="1228" height="813" alt="image" src="https://github.com/user-attachments/assets/85eb83e1-ad00-4fc9-8290-6da1f7a44280" />
+
 
 <img width="1168" height="841" alt="image" src="https://github.com/user-attachments/assets/2474c689-5f25-4de8-a6da-7b23b8af3410" />
 
+
 <img width="1297" height="799" alt="image" src="https://github.com/user-attachments/assets/f5bf0281-1561-4013-9ffe-fe9215e20283" />
+
 
 <img width="1147" height="833" alt="image" src="https://github.com/user-attachments/assets/fc786a2c-6c7a-454b-8dca-612609c35cf1" />
 
+
 <img width="1460" height="551" alt="image" src="https://github.com/user-attachments/assets/a859d817-1f13-479c-9b71-92e1eb6caa13" />
+
 
 ✅ Mode-based product discovery (backend-driven)
 ✅ Efficient pagination & advanced filtering
