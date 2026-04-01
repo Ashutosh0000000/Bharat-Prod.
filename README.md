@@ -4,8 +4,9 @@ After weeks of backend-heavy engineering, I built and deployed a scalable produc
 Bharat Products – Made in India
 
 📸 Screenshots below (modes, filters, pagination, analytics)
-
+MODES
 <img width="1439" height="799" alt="image" src="https://github.com/user-attachments/assets/303289ac-2cb7-495d-89d4-070fb97f49fa" />
+
 
 <img width="1600" height="704" alt="image" src="https://github.com/user-attachments/assets/65f4db91-b967-4e97-8b54-89985f6d25f9" />
 
