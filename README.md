@@ -1,10 +1,10 @@
              BHARAT PRODUCTS MULTIVENDOR MARKETPLACE
-🚀Built a Production-Ready Product Discovery Platform 🇮🇳
+Built a Production-Ready Product Discovery Platform 🇮🇳
 After weeks of backend-heavy engineering, I built and deployed a scalable product platform — not a demo, not a tutorial.
 
 Bharat Products – Made in India
 
-📸 Screenshots below (modes, filters, pagination, analytics)
+Screenshots below (modes, filters, pagination, analytics)
 
 <img width="1439" height="799" alt="image" src="https://github.com/user-attachments/assets/303289ac-2cb7-495d-89d4-070fb97f49fa" />
 
@@ -27,11 +27,11 @@ Bharat Products – Made in India
 <img width="1460" height="551" alt="image" src="https://github.com/user-attachments/assets/a859d817-1f13-479c-9b71-92e1eb6caa13" />
 
 
-✅ Mode-based product discovery (backend-driven)
-✅ Efficient pagination & advanced filtering
-✅ Redis caching to reduce PostgreSQL load
-✅ Analytics dashboard with real metrics
-✅ Fully Dockerized & deployed (Render)
+Mode-based product discovery (backend-driven)
+Efficient pagination & advanced filtering
+Redis caching to reduce PostgreSQL load
+Analytics dashboard with real metrics
+Fully Dockerized & deployed (Render)
 
 Tech: FastAPI, PostgreSQL, Redis, Streamlit, Docker, Render
 
